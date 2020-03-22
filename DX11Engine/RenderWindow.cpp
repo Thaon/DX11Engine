@@ -1,5 +1,57 @@
 #include "WindowContainer.h"
 
+//Utils -------------------------
+
+LRESULT CALLBACK HandleMsgRedirect(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+	switch (uMsg)
+	{
+		// All other messages
+	case WM_CLOSE:
+		DestroyWindow(hwnd);
+		return 0;
+
+	default:
+	{
+		// retrieve ptr to window class
+		WindowContainer* const pWindow = reinterpret_cast<WindowContainer*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+		// forward message to window class handler
+		return pWindow->WindowProc(hwnd, uMsg, wParam, lParam);
+	}
+	}
+}
+
+//messages are dispatched through here
+LRESULT CALLBACK HandleMsgSetup(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+	switch (uMsg)
+	{
+	case WM_NCCREATE:
+	{
+
+		const CREATESTRUCTW* const pCreate = reinterpret_cast<CREATESTRUCTW*>(lParam);
+		WindowContainer * pWindow = reinterpret_cast<WindowContainer*>(pCreate->lpCreateParams);
+		if (pWindow == nullptr) //Sanity check
+		{
+			ErrorLogger::Log("Critical Error: Pointer to window container is null during WM_NCCREATE.");
+			exit(-1);
+		}
+		SetWindowLongPtr(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(pWindow));
+		SetWindowLongPtr(hwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(HandleMsgRedirect));
+		return pWindow->WindowProc(hwnd, uMsg, wParam, lParam);
+		//return DefWindowProc(hwnd, uMsg, wParam, lParam);
+		break;
+	}
+
+	default:
+		return DefWindowProc(hwnd, uMsg, wParam, lParam);
+		break;
+	}
+}
+
+
+//Class --------------------------------------------------------------------------------------------------------------
+
 RenderWindow::~RenderWindow()
 {
 	if (m_handle != NULL)
@@ -94,50 +146,4 @@ void RenderWindow::RegisterWindowClass()
 	wc.lpszClassName = m_wClassWide.c_str(); //Pointer to null terminated string of our class name for this window.
 	wc.cbSize = sizeof(WNDCLASSEX); //Need to fill in the size of our struct for cbSize
 	RegisterClassEx(&wc); // Register the class so that it is usable.
-}
-
-//Utils -------------------------
-
-//messages are dispatched through here
-LRESULT CALLBACK HandleMsgSetup(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
-{
-	switch (uMsg)
-	{
-	case WM_NCCREATE:
-		const CREATESTRUCTW* const pCreate = reinterpret_cast<CREATESTRUCTW*>(lParam);
-		WindowContainer * pWindow = reinterpret_cast<WindowContainer*>(pCreate->lpCreateParams);
-		if (pWindow == nullptr) //Sanity check
-		{
-			ErrorLogger::Log("Critical Error: Pointer to window container is null during WM_NCCREATE.");
-			exit(-1);
-		}
-		SetWindowLongPtr(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(pWindow));
-		SetWindowLongPtr(hwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(HandleMsgRedirect));
-		return pWindow->WindowProc(hwnd, uMsg, wParam, lParam);
-		//return DefWindowProc(hwnd, uMsg, wParam, lParam);
-		break;
-
-	default:
-		return DefWindowProc(hwnd, uMsg, wParam, lParam);
-		break;
-	}
-}
-
-LRESULT CALLBACK HandleMsgRedirect(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
-{
-	switch (uMsg)
-	{
-		// All other messages
-	case WM_CLOSE:
-		DestroyWindow(hwnd);
-		return 0;
-
-	default:
-	{
-		// retrieve ptr to window class
-		WindowContainer* const pWindow = reinterpret_cast<WindowContainer*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
-		// forward message to window class handler
-		return pWindow->WindowProc(hwnd, uMsg, wParam, lParam);
-	}
-	}
 }

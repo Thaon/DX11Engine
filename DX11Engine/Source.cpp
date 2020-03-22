@@ -12,6 +12,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	engine.Init(hInstance, "Title", "WNDClass", 800, 600);
 	while (engine.ProcessEvents())
 	{
+		engine.Update();
 	}
 	return 0;
 }
