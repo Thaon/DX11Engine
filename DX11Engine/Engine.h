@@ -9,5 +9,6 @@ public:
 	void Update();
 
 private:
+	bool m_debug = true;
 };
 
