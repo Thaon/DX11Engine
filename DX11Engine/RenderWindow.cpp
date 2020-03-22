@@ -1,4 +1,4 @@
-#include "RenderWindow.h"
+#include "WindowContainer.h"
 
 RenderWindow::~RenderWindow()
 {
@@ -9,7 +9,7 @@ RenderWindow::~RenderWindow()
 	}
 }
 
-bool RenderWindow::Init(HINSTANCE hInstance, std::string title, std::string wClass, int width, int height)
+bool RenderWindow::Init(WindowContainer* pWContainer, HINSTANCE hInstance, std::string title, std::string wClass, int width, int height)
 {
 	m_hInstance = hInstance;
 	m_title = title;
@@ -32,7 +32,7 @@ bool RenderWindow::Init(HINSTANCE hInstance, std::string title, std::string wCla
 		NULL, //Handle to parent of this window. Since this is the first window, it has no parent window.
 		NULL, //Handle to menu or child window identifier. Can be set to NULL and use menu in WindowClassEx if a menu is desired to be used.
 		m_hInstance, //Handle to the instance of module to be used with this window
-		nullptr); //Param to create window
+		pWContainer); //Param to create window
 
 	if (m_handle == NULL)
 	{
@@ -82,7 +82,7 @@ void RenderWindow::RegisterWindowClass()
 {
 	WNDCLASSEX wc; //Our Window Class (This has to be filled before our window can be created) See: https://msdn.microsoft.com/en-us/library/windows/desktop/ms633577(v=vs.85).aspx
 	wc.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC; //Flags [Redraw on width/height change from resize/movement] See: https://msdn.microsoft.com/en-us/library/windows/desktop/ff729176(v=vs.85).aspx
-	wc.lpfnWndProc = DefWindowProc; //Pointer to Window Proc function for handling messages from this window
+	wc.lpfnWndProc = HandleMsgSetup; //Pointer to Window Proc function for handling messages from this window
 	wc.cbClsExtra = 0; //# of extra bytes to allocate following the window-class structure. We are not currently using this.
 	wc.cbWndExtra = 0; //# of extra bytes to allocate following the window instance. We are not currently using this.
 	wc.hInstance = m_hInstance; //Handle to the instance that contains the Window Procedure
@@ -94,4 +94,50 @@ void RenderWindow::RegisterWindowClass()
 	wc.lpszClassName = m_wClassWide.c_str(); //Pointer to null terminated string of our class name for this window.
 	wc.cbSize = sizeof(WNDCLASSEX); //Need to fill in the size of our struct for cbSize
 	RegisterClassEx(&wc); // Register the class so that it is usable.
+}
+
+//Utils -------------------------
+
+//messages are dispatched through here
+LRESULT CALLBACK HandleMsgSetup(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+	switch (uMsg)
+	{
+	case WM_NCCREATE:
+		const CREATESTRUCTW* const pCreate = reinterpret_cast<CREATESTRUCTW*>(lParam);
+		WindowContainer * pWindow = reinterpret_cast<WindowContainer*>(pCreate->lpCreateParams);
+		if (pWindow == nullptr) //Sanity check
+		{
+			ErrorLogger::Log("Critical Error: Pointer to window container is null during WM_NCCREATE.");
+			exit(-1);
+		}
+		SetWindowLongPtr(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(pWindow));
+		SetWindowLongPtr(hwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(HandleMsgRedirect));
+		return pWindow->WindowProc(hwnd, uMsg, wParam, lParam);
+		//return DefWindowProc(hwnd, uMsg, wParam, lParam);
+		break;
+
+	default:
+		return DefWindowProc(hwnd, uMsg, wParam, lParam);
+		break;
+	}
+}
+
+LRESULT CALLBACK HandleMsgRedirect(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+	switch (uMsg)
+	{
+		// All other messages
+	case WM_CLOSE:
+		DestroyWindow(hwnd);
+		return 0;
+
+	default:
+	{
+		// retrieve ptr to window class
+		WindowContainer* const pWindow = reinterpret_cast<WindowContainer*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+		// forward message to window class handler
+		return pWindow->WindowProc(hwnd, uMsg, wParam, lParam);
+	}
+	}
 }
